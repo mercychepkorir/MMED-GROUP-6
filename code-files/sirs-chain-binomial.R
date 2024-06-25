@@ -47,8 +47,8 @@ sirs_chainbinomial <- function(time, state, parameters) {
 }
 
 
-# the function for generating data given time points
-#' Title
+
+#' The function for generating data given time points
 #'
 #' @param time gives the time we want our simulation to run from
 #' @param state gives the state values for S, I, R
@@ -86,7 +86,7 @@ solve_chainbinomial <- function(time, initial_state, parameters) {
 # sirs_chainbinomial(time = 1:200, state = c(S=1000, I = 90, R = 30), parameters = parms)
 
 
-#' function for sampling from the ABM world dataset: returns either full or reduced sample
+#' Function for sampling from the ABM world dataset: returns either full or reduced sample
 #'
 #' @param simDat The data from the ABM 
 #'
@@ -162,6 +162,8 @@ ggplot(abm_data, aes(x = time)) +
   geom_point(aes(y = I), cex = .3, show.legend = F) + 
   geom_line(data = out, aes(x = time, y = I), col = 'red') + 
   theme_classic()
+
+
 
 
 
