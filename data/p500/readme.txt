@@ -1,7 +1,6 @@
-
-
-population = 500 people
-initially infected = 10 people
-immunity length = 7 days
-probability of infection = 48%
-infection period = 10 days
+•	Time in days – 2096
+•	Population size – 500
+•	Beta percentage – 30%
+•	Immunity_days – 10
+•	Infectious_period – 15
+•	Initial_infections – 10 
