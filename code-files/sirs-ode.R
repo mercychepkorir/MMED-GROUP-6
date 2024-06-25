@@ -150,6 +150,7 @@ for (i in 1:length(data_files)) {
 }
 
 
+
 # Solving the system of equations: SIRS-ODE using the fitted parameters
 # using a single set of parameter values
 out <- ode(y = (abm_data)[1, 1:3] |> unlist(),
@@ -168,7 +169,25 @@ ggplot(fsir |> mutate(simulation = factor(simulation)) |> filter(simulation == 1
   theme_classic()
 
 
-# Plotting the 
+# Plotting the parameter values 
+fullpar2 = fullpar |>
+  data.frame() |>
+  setNames(c('Contact rate', 'Probability of \ninfection', 'Rate of \nrecovery', 'Rate of \nre-infection')) |>
+  pivot_longer(everything())
+
+truepars = data.frame(name = c('Contact rate', 'Probability of \ninfection', 'Rate of \nrecovery', 'Rate of \nre-infection'),
+                      value = c(NA, .3, 1/15, 1/10))
+
+ggplot(fullpar2) +
+  geom_boxplot(aes(x = name, y = value)) + 
+  geom_point(data = truepars, aes(x = name, y = value, group = name), col = 'blue', cex = 3) + 
+  labs(title = 'Parameter values for N = 500', x = 'Parameter', y = 'Values') +
+  theme_bw(base_line_size = 0)
+
+
+
+
+
 
 
 
