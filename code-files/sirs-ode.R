@@ -58,9 +58,9 @@ sirs_model <- function(time, state, parameters) {
 #' @param parameters a vector of parameters: prob_infect, prob_recover, prob_reinfect, contact_rate
 #'
 #' @return a list with the dS, dI, dR
-sirs_model_cp <- function(time, state, parameters) {
+sirs_model_cp <- function(time, state, par) {
   
-  with(as.list(c(state, parameters)), {
+  with(as.list(c(state, par)), {
     N <- S + I + R
     beta = c*p
     
@@ -104,12 +104,12 @@ sampleEpidemic <- function(simDat # Simulated "data" which we treat as real
 #' @param abm_data # the actual ABM data
 #'
 #' @return numeric value: the sum of the negative log-likelihoods
-nllikelihood <- function(parms = (parameters), obsDat=myDat, abm_data = abm_data) {
+nllikelihood <- function(par = par, obsDat=myDat, abm_data = abm_data) {
   
   initial_state = (abm_data)[1, 1:3] |> unlist()
   time = seq(from = 0, to = max(abm_data$time), by = 1)
   
-  simDat <- ode(y = initial_state, times = time, func = sirs_model_cp, parms = parms) |> # sirs_model
+  simDat <- ode(y = initial_state, times = time, func = sirs_model_cp, par = par) |> # sirs_model
     as.data.frame() |>
     mutate(P = I / (S + I + R))
   
@@ -118,7 +118,7 @@ nllikelihood <- function(parms = (parameters), obsDat=myDat, abm_data = abm_data
 }
 
 
-# nllikelihood(parms =  c(c = 1, p = .2, gamma = .4, xi = .5),
+# nllikelihood(par =  c(c = 1, p = .2, gamma = .4, xi = .5),
 #              obsDat=myDat, abm_data = abm_data) ## loglikelihood of the true parameters (which we usually never know)
 
 
@@ -128,17 +128,19 @@ nllikelihood <- function(parms = (parameters), obsDat=myDat, abm_data = abm_data
 for (i in 1:length(data_files)) {
   message('Running simulation: ', i, ' out of : ', length(data_files))
   
+  # using only the chosen simulation
+  filtered_data = abm_data |> 
+    filter(file == data_files[i]) |>
+    select(-file)
+  
   # sampling from the ABM: Here we choose to use all the abm data
-  myDat = sampleEpidemic(abm_data |> 
-                           filter(file == data_files[i]) |>
-                           select(-file))
+  myDat = sampleEpidemic(filtered_data)
   
   # optimizing 
   optim.vals <- optim(par = c(c = 3, p = .1, gamma = .4, xi = .5)
                       , nllikelihood
-                      # , fixed.params = disease_params()
                       , obsDat = myDat
-                      , abm_data = abm_data
+                      , abm_data = filtered_data
                       , control = list(trace = 1, maxit = 1000)
                       , method = "Nelder-Mead")
   
@@ -151,24 +153,6 @@ for (i in 1:length(data_files)) {
 
 
 
-# Solving the system of equations: SIRS-ODE using the fitted parameters
-# using a single set of parameter values
-out <- ode(y = (abm_data)[1, 1:3] |> unlist(),
-           times = 1:200,
-           func = sirs_model_cp,
-           parms = optim.vals$par)
-
-# Convert to data frame for easier handling
-out <- as.data.frame(out)
-
-# plottiong to confirm
-ggplot(fsir |> mutate(simulation = factor(simulation)) |> filter(simulation == 1),
-       aes(x = time)) + 
-  geom_point(aes(y = I, col = simulation), cex = .3) + 
-  geom_line(data = out, aes(x = time, y = I), col = 'red') + 
-  theme_classic()
-
-
 # Plotting the parameter values 
 fullpar2 = fullpar |>
   data.frame() |>
@@ -179,10 +163,48 @@ truepars = data.frame(name = c('Contact rate', 'Probability of \ninfection', 'Ra
                       value = c(NA, .3, 1/15, 1/10))
 
 ggplot(fullpar2) +
-  geom_boxplot(aes(x = name, y = value)) + 
-  geom_point(data = truepars, aes(x = name, y = value, group = name), col = 'blue', cex = 3) + 
-  labs(title = 'Parameter values for N = 500', x = 'Parameter', y = 'Values') +
-  theme_bw(base_line_size = 0)
+  geom_density(aes(x = value)) + 
+  facet_wrap(~name, scales = "free") +
+  geom_vline(data = truepars, aes(xintercept = value, group = name), col = 'blue', size = 1) + 
+  labs(title = 'Parameter values for N = 500', x = 'Parameter', y = 'Density') +
+  theme_bw(base_line_size = 0) +
+  theme(panel.spacing = unit(1, "lines"))
+
+
+
+# Plotting one occurence
+plts = list()
+
+for (i in 1:length(data_files)) {
+  
+  # using only the chosen simulation
+  filtered_data = abm_data |> 
+    filter(file == data_files[i]) |>
+    select(-file)
+  
+  
+  # Solving the system of equations: SIRS-ODE using the fitted parameters
+  # using a single set of parameter values
+  out <- ode(y = (filtered_data)[1, 1:3] |> unlist(),
+             times = 1:nrow(filtered_data),
+             func = sirs_model_cp,
+             parms = fullpar[i, ])
+  
+  # Convert to data frame for easier handling
+  out <- as.data.frame(out)
+  
+  # plottiong to confirm
+  plts[[i]] = ggplot(filtered_data, aes(x = time)) + 
+    geom_point(aes(y = I), cex = .3) + 
+    geom_line(data = out, aes(x = time, y = I), col = 'red') + 
+    theme_classic()
+  
+}
+
+do.call(grid.arrange, plts)
+
+
+
 
 
 
