@@ -5,16 +5,27 @@
 # Libs --------------------------------------------------------------------
 
 library(pacman)
-p_load(dplyr, ggplot2, tidyr, deSolve, stringr)
+p_load(dplyr, ggplot2, tidyr, deSolve, stringr, purrr)
 
 
 # Load data from ABM ------------------------------------------------------
 
-abm_data = read.csv('data/p500/sirs-model.csv') |>
-  select(time, S = Susceptible, I = Infected.infectious, R = Recovered) |>
-  mutate(P = I/(S+I+R)) |>
-  select(S, I, R, time, P)
+data_files <- list.files(path = 'data/p500', pattern = "*.csv", full.names = TRUE)
 
+#' Function to read and process a single CSV file
+#'
+#' @param file the file path and name and extension e.g. 'data/p500/sim.csv'
+#'
+#' @return a single file read
+process_file <- function(file) {
+  read.csv(file) %>%
+    select(time, S = Susceptible, I = Infected.infectious, R = Recovered) %>%
+    mutate(P = I / (S + I + R),
+           file = file) %>%
+    select(S, I, R, time, P, file)
+}
+
+abm_data <- map_dfr(data_files, process_file)
 
 
 # Functions --------------------------------------------------------------
@@ -80,7 +91,7 @@ sampleEpidemic <- function(simDat # Simulated "data" which we treat as real
   lci <- mapply(function(x,n) binom.test(x,n)$conf.int[1], x = numPos, n = round(numSamp, 0))
   uci <- mapply(function(x,n) binom.test(x,n)$conf.int[2], x = numPos, n = round(numSamp, 0)) 
   
-  return(data.frame(time = sampleDates, numPos, numSamp, sampPrev =  numPos/numSamp,
+  return(data.frame(time = 1:length(numPos), numPos, numSamp, sampPrev =  numPos/numSamp,
                     lci = lci, uci = uci))
 }
 
@@ -107,25 +118,40 @@ nllikelihood <- function(parms = (parameters), obsDat=myDat, abm_data = abm_data
 }
 
 
-nllikelihood(parms =  c(c = 1, p = .2, gamma = .4, xi = .5),
-             obsDat=myDat, abm_data = abm_data) ## loglikelihood of the true parameters (which we usually never know)
+# nllikelihood(parms =  c(c = 1, p = .2, gamma = .4, xi = .5),
+#              obsDat=myDat, abm_data = abm_data) ## loglikelihood of the true parameters (which we usually never know)
 
 
 
 # Fitting the model by MLE ------------------------------------------------
 
-optim.vals <- optim(par = c(c = 3, p = .1, gamma = .4, xi = .5)
-                    , nllikelihood
-                    # , fixed.params = disease_params()
-                    , obsDat = myDat
-                    , abm_data = abm_data
-                    , control = list(trace = 1, maxit = 1000)
-                    , method = "Nelder-Mead")
+for (i in 1:length(data_files)) {
+  message('Running simulation: ', i, ' out of : ', length(data_files))
+  
+  # sampling from the ABM: Here we choose to use all the abm data
+  myDat = sampleEpidemic(abm_data |> 
+                           filter(file == data_files[i]) |>
+                           select(-file))
+  
+  # optimizing 
+  optim.vals <- optim(par = c(c = 3, p = .1, gamma = .4, xi = .5)
+                      , nllikelihood
+                      # , fixed.params = disease_params()
+                      , obsDat = myDat
+                      , abm_data = abm_data
+                      , control = list(trace = 1, maxit = 1000)
+                      , method = "Nelder-Mead")
+  
+  pars = optim.vals$par |> data.frame() |> t()
+  
+  if (i == 1) fullpar = pars
+  else fullpar = rbind(fullpar, pars)
+  
+}
 
-# THE CHOSEN PARAMETERS
-optim.vals$par
 
 # Solving the system of equations: SIRS-ODE using the fitted parameters
+# using a single set of parameter values
 out <- ode(y = (abm_data)[1, 1:3] |> unlist(),
            times = 1:200,
            func = sirs_model_cp,
@@ -134,11 +160,15 @@ out <- ode(y = (abm_data)[1, 1:3] |> unlist(),
 # Convert to data frame for easier handling
 out <- as.data.frame(out)
 
-
 # plottiong to confirm
 ggplot(fsir |> mutate(simulation = factor(simulation)) |> filter(simulation == 1),
        aes(x = time)) + 
   geom_point(aes(y = I, col = simulation), cex = .3) + 
   geom_line(data = out, aes(x = time, y = I), col = 'red') + 
   theme_classic()
+
+
+# Plotting the 
+
+
 
