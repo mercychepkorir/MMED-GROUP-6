@@ -141,7 +141,7 @@ Population
 Population
 0
 5000
-500.0
+1000.0
 100
 1
 NIL
@@ -156,7 +156,7 @@ Immunity_days
 Immunity_days
 0
 14
-10.0
+5.0
 1
 1
 NIL
@@ -246,8 +246,8 @@ SLIDER
 stop_day
 stop_day
 0
-1000
-1000.0
+3650
+3650.0
 1
 1
 days
